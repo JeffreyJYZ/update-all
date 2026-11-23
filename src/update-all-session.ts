@@ -5,8 +5,16 @@ import type { CliRenderer } from "@opentui/core";
 import { type PtyChild, startPtyChild } from "./update-all-child.ts";
 import type { Job, JobResult } from "./update-all-jobs.ts";
 import { resultFromLog } from "./update-all-log.ts";
-import { createView, type TuiView } from "./update-all-panes.ts";
-import { doneStatus, formatStatus, splitHeights } from "./update-all-tui-state.ts";
+import { BANNER_ROWS, createView, type TuiView } from "./update-all-panes.ts";
+import {
+	bannerFor,
+	doneStatus,
+	formatStatus,
+	rebalanceHeights,
+	scrollStatus,
+	splitHeights,
+	STATUS_ROWS,
+} from "./update-all-tui-state.ts";
 
 /** Mutable keyboard state, shared with attachKeys. */
 export interface KeyState {
@@ -27,7 +35,10 @@ export interface TuiSession {
 export function mountSession(renderer: CliRenderer, jobs: Job[], logDir: string): TuiSession {
 	mkdirSync(logDir, { recursive: true });
 	const startedAt = Date.now();
-	const state: KeyState = { heights: splitHeights(renderer.height - 1, jobs.length), focused: 0 };
+	const state: KeyState = {
+		heights: splitHeights(renderer.height - STATUS_ROWS, jobs.length),
+		focused: 0,
+	};
 	const view = createView(renderer, jobs, state.heights, renderer.width);
 	const codes = new Map<string, number | null>();
 	const starts = new Map<string, number>();
@@ -35,6 +46,9 @@ export function mountSession(renderer: CliRenderer, jobs: Job[], logDir: string)
 	const children: PtyChild[] = [];
 	let finished = false;
 	let quitting = false;
+	let baseStatus = "";
+	let scrollSuffix: string | null = null;
+	let bannerVisible = false;
 	let resolveQuit: () => void = () => {};
 	const quitPromise = new Promise<void>((resolve) => {
 		resolveQuit = resolve;
@@ -46,10 +60,26 @@ export function mountSession(renderer: CliRenderer, jobs: Job[], logDir: string)
 			code: codes.get(job.id) ?? null,
 			elapsedMs: (ends.get(job.id) ?? Date.now()) - (starts.get(job.id) ?? startedAt),
 		}));
+	const paintStatus = () => {
+		view.setStatus(scrollSuffix ? `${baseStatus}   ${scrollSuffix}` : baseStatus);
+	};
+	view.onScrollChange = (label, state) => {
+		scrollSuffix = state ? scrollStatus(label, state) : null;
+		paintStatus();
+	};
 	const refresh = () => {
-		if (!finished) view.setStatus(formatStatus(items()));
+		if (!finished) {
+			baseStatus = formatStatus(items());
+			paintStatus();
+		}
 	};
 	const timer = setInterval(refresh, 250);
+	const onResize = () => {
+		const available = renderer.height - STATUS_ROWS - (bannerVisible ? BANNER_ROWS : 0);
+		state.heights = rebalanceHeights(state.heights, available);
+		view.setHeights(state.heights);
+	};
+	renderer.on("resize", onResize);
 	refresh();
 
 	const results = Promise.all(
@@ -90,7 +120,16 @@ export function mountSession(renderer: CliRenderer, jobs: Job[], logDir: string)
 				elapsedMs: result?.ms ?? 0,
 			};
 		});
-		view.setStatus(doneStatus(finalItems, Date.now() - startedAt));
+		baseStatus = doneStatus(finalItems, Date.now() - startedAt);
+		paintStatus();
+		bannerVisible = true;
+		state.heights = rebalanceHeights(
+			state.heights,
+			renderer.height - STATUS_ROWS - BANNER_ROWS,
+		);
+		view.setHeights(state.heights);
+		const banner = bannerFor(finalItems, Date.now() - startedAt);
+		view.showBanner(banner.text, banner.ok);
 	});
 
 	return {
@@ -110,6 +149,7 @@ export function mountSession(renderer: CliRenderer, jobs: Job[], logDir: string)
 		},
 		dispose() {
 			clearInterval(timer);
+			renderer.off("resize", onResize);
 			for (const child of children) child.close();
 		},
 	};

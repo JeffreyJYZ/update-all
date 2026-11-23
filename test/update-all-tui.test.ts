@@ -1,6 +1,7 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import "./fixtures/result-tests.ts";
-import "./fixtures/finished-tests.ts";
+import "./fixtures/scroll-tests.ts";
+import "./fixtures/banner-tests.ts";
+import "./fixtures/boundary-tests.ts";
 import { EmbeddedTerminalRenderable } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
 import { JOBS } from "../src/jobs/index.ts";
@@ -117,7 +118,7 @@ describe("focus and geometry", () => {
 		}
 	});
 
-	test("] grows the focused pane and [ clamps at four rows", async () => {
+	test("] moves the boundary below the focused pane and clamps at four rows", async () => {
 		const setup = await createTestRenderer({ width: 80, height: 40 });
 		try {
 			const jobs = fourFakeJobs();
@@ -125,9 +126,10 @@ describe("focus and geometry", () => {
 			const view = createView(setup.renderer, jobs, heights, 80);
 			const state = { heights, focused: 0 };
 			attachKeys(setup.renderer, view, state, () => {});
-			const before = state.heights[0];
+			const before = [...state.heights];
 			await setup.mockInput.typeText("]");
-			expect(state.heights[0]).toBe(before + 1);
+			expect(state.heights[0]).toBe(before[0] + 1);
+			expect(state.heights[1]).toBe(before[1] - 1);
 			for (let i = 0; i < 20; i++) await setup.mockInput.typeText("[");
 			expect(state.heights[0]).toBe(MIN_PANE_HEIGHT);
 			expect(state.heights.reduce((sum, n) => sum + n, 0)).toBe(39);
