@@ -34,7 +34,11 @@ function fakeRun(): { code: number; out: string } {
 	const proc = Bun.spawnSync({
 		cmd: [process.execPath, "src/update-all.ts", "--no-tui"],
 		cwd: join(import.meta.dir, ".."),
-		env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}` },
+		env: {
+			...process.env,
+			PATH: `${bin}:${process.env.PATH ?? ""}`,
+			UPDATE_ALL_LOG_DIR: dir,
+		},
 		stdout: "pipe",
 		stderr: "pipe",
 	});

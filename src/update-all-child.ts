@@ -5,6 +5,8 @@ import { PTY_ENV } from "./update-all-job.ts";
 /** A spawned PTY child paired with the pane that displays it. */
 export interface PtyChild {
 	child: ReturnType<typeof Bun.spawn>;
+	/** Resolves after process exit and the PTY's last data callback. */
+	finished: Promise<void>;
 	kill(): void;
 	close(): void;
 }
@@ -22,6 +24,10 @@ export function startPtyChild(
 	env: Record<string, string> = {},
 ): PtyChild {
 	let fd = openSync(log, "w");
+	let resolveDrained: () => void = () => {};
+	const drained = new Promise<void>((resolve) => {
+		resolveDrained = resolve;
+	});
 	const terminal = Bun.spawn(argv, {
 		terminal: {
 			cols,
@@ -31,13 +37,21 @@ export function startPtyChild(
 				pane.write(data);
 				if (fd >= 0) writeSync(fd, data);
 			},
+			/** Fires after the PTY stream closes, so all data callbacks have run. */
+			exit: () => resolveDrained(),
 		},
 		env: { ...process.env, ...PTY_ENV, ...env },
 	});
+	const finished = (async () => {
+		await terminal.exited;
+		/** Never hang if a platform omits the PTY exit callback. */
+		await Promise.race([drained, Bun.sleep(100)]);
+	})();
 	pane.onData = (data) => terminal.terminal?.write(data);
 	pane.onTerminalResize = (nextCols, nextRows) => terminal.terminal?.resize(nextCols, nextRows);
 	return {
 		child: terminal,
+		finished,
 		kill() {
 			terminal.kill();
 		},

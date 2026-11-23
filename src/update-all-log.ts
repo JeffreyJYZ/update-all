@@ -5,23 +5,30 @@ import { readFileSync } from "node:fs";
 // biome-ignore lint/complexity/useRegexLiterals: string form keeps the ESC out of a regex literal.
 export const ANSI = new RegExp("\\u001b\\[[0-?]*[ -/]*[@-~]", "g");
 
-const PROGRESS = /\[[=>#*\s.-]+\]\s*\d+%|^\d+%$|\b\d+%\s*(complete|downloaded|installed)\b/i;
-const SPINNER = /^[|/-]\s/;
+/** A real job completion line, preferred over transient output. */
+const COMPLETION =
+	/\b(Upgraded\b|packages installed\b|Updated\s+\d+\s+skill|Installed\b|Already up-to-date\b)/i;
+const PROGRESS = /\[[=>#*\s.-]+\]\s*\d+%|\b\d+%$|\bDownloading\b|\/[-]+\b/i;
+const SPINNER = /^[|/\\\-\u2800-\u28ff]\s/u;
 const BARE_PATH = /^(~|\.{1,2}|\/)[^\s]*\/[^\s]*$/;
 
-/** Strip ANSI, then keep only the last \r redraw of one log line. */
-export function cleanLine(line: string): string {
-	const plain = line.replace(ANSI, "");
-	const states = plain.split("\r");
-	return (states[states.length - 1] ?? "").trim();
+function parts(text: string): string[] {
+	return text
+		.replace(ANSI, "")
+		.split(/[\r\n]/)
+		.map((line) => line.trim().replace(/\s+/g, " "))
+		.filter((line) => line.length > 0);
 }
 
-/** All cleaned log lines, without a trailing empty line. */
+/** Last non-empty \r or \n segment of one raw log line. */
+export function cleanLine(line: string): string {
+	return parts(line).at(-1) ?? "";
+}
+
+/** Every non-empty line from the transcript, split on both \r and \n. */
 export function logLines(path: string): string[] {
 	try {
-		const lines = readFileSync(path, "utf8").split("\n").map(cleanLine);
-		while (lines.at(-1) === "") lines.pop();
-		return lines;
+		return parts(readFileSync(path, "utf8"));
 	} catch {
 		return [];
 	}
@@ -29,20 +36,10 @@ export function logLines(path: string): string[] {
 
 /** Last `count` lines of a log, or empty when it cannot be read. */
 export function tail(path: string, count: number): string {
-	try {
-		return readFileSync(path, "utf8")
-			.trimEnd()
-			.split("\n")
-			.map(cleanLine)
-			.slice(-count)
-			.join("\n");
-	} catch {
-		return "";
-	}
+	return logLines(path).slice(-count).join("\n");
 }
 
 function meaningful(line: string): boolean {
-	if (line.length === 0) return false;
 	if (PROGRESS.test(line) || SPINNER.test(line)) return false;
 	if (BARE_PATH.test(line) && !line.includes(" ")) return false;
 	return true;
@@ -58,17 +55,19 @@ export function truncateOneLine(text: string, width?: number): string {
 	return `${text.slice(0, end)}…`;
 }
 
-/** Last meaningful log line: no ANSI, no progress redraw, no bare path. */
+/**
+ * Prefer the last real completion line, then the last line that is not a
+ * spinner, progress redraw or bare path.
+ */
 export function resultFromLog(path: string): string {
-	let text: string;
-	try {
-		text = readFileSync(path, "utf8");
-	} catch {
-		return "";
+	const lines = logLines(path);
+	for (let i = lines.length - 1; i >= 0; i--) {
+		const line = lines[i];
+		if (line && meaningful(line) && COMPLETION.test(line)) return truncateOneLine(line);
 	}
-	for (const raw of text.split("\n").reverse()) {
-		const line = cleanLine(raw);
-		if (meaningful(line)) return truncateOneLine(line);
+	for (let i = lines.length - 1; i >= 0; i--) {
+		const line = lines[i];
+		if (line && meaningful(line)) return truncateOneLine(line);
 	}
 	return "";
 }

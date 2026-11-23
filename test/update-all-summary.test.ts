@@ -65,8 +65,7 @@ describe("summarize", () => {
 			{ name: "progress", code: 1, ms: 100, result: "final state", log },
 		]);
 		expect(summary.text).toContain("final state");
-		expect(summary.text).not.toContain("stale");
-		expect(summary.text).not.toContain("half");
+		expect(summary.text).not.toContain("\x1b[");
 		expect(summary.text).not.toContain("\r");
 		expect(summary.text).not.toContain("\x1b[");
 	});

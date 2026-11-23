@@ -98,7 +98,7 @@ export function mountSession(renderer: CliRenderer, jobs: Job[], logDir: string)
 			);
 			children.push(child);
 			codes.set(job.id, null);
-			await child.child.exited;
+			await child.finished;
 			const code = child.child.exitCode ?? 1;
 			codes.set(job.id, code);
 			ends.set(job.id, Date.now());
