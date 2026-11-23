@@ -10,16 +10,25 @@ Runs three global upgrade jobs concurrently: `skills update -g`, `brew upgrade -
 
 Three panes stacked vertically, full width. Top region is the panes; bottom is one status line. The status line shows `job name · exit code or running · elapsed` for each job, then the summary verdict once all three finish.
 
-The TUI does not close when the last job finishes. The panes stay mounted and readable, and `Tab` and the resize keys keep working, so you can read any job's output at leisure before leaving.
+The TUI does not close when the last job finishes. The panes stay mounted and readable, and `Tab`, the resize keys and the scroll keys keep working, so you can read any job's output at leisure before leaving.
+
+When the last job exits, a full-width banner appears above the panes: `✔ ALL DONE · 3 jobs ok · 84.6s · press q to exit`, or `✖ FAILED · brew exit 1 · 2 ok · press q to exit` when something failed. It stays until you press `q`.
 
 ## Keys
 
 - `Tab` — cycle focus to the next pane.
-- `]` — grow the focused pane.
-- `[` — shrink the focused pane, down to a minimum of 4 rows.
+- `]` — move the boundary below the focused pane down, growing it. On the last pane it moves the boundary above it.
+- `[` — move that boundary the other way, shrinking it. Neither side may go below 4 rows, and an illegal move is ignored rather than clamped.
+- `Shift+Up` / `Shift+Down` — scroll the focused pane by one row.
+- `Shift+PgUp` / `Shift+PgDn` — scroll by one page.
+- `Shift+Home` / `Shift+End` — jump to the oldest output, or back to the live screen.
 - `q` — quit and kill every child.
 
+Every boundary in the stack moves this way, so all panes are resizable, not just the focused one. Plain keys, arrows included, still go to the child; only the Shift combinations scroll.
+
 Focus means keystrokes go to that pane's child process, not to the terminal at large. That is how `sudo` works: focus the pane that is prompting, then type the password there. A pane you are not focused on will not receive what you type.
+
+While a pane is scrolled, the status line shows `name · scroll N/total`; it clears when you are back at the live screen.
 
 ## Flags
 

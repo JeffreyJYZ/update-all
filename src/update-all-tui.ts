@@ -4,9 +4,19 @@ import { JOBS } from "./jobs/index.ts";
 import { type Job, type JobResult, defaultLogDir } from "./update-all-jobs.ts";
 import type { TuiView } from "./update-all-panes.ts";
 import { type KeyState, type TuiSession, mountSession } from "./update-all-session.ts";
-import { cycleFocus, resizeHeights } from "./update-all-tui-state.ts";
+import { type ScrollKind, cycleFocus, resizeHeights } from "./update-all-tui-state.ts";
 
-/** Wire Tab, Shift+Tab, `[`, `]`, q and Ctrl-C. Returns a detach function. */
+/** Shift + these keys scroll the focused pane instead of reaching the child. */
+const SCROLL_KEYS: Record<string, ScrollKind> = {
+	up: "up-one",
+	down: "down-one",
+	pageup: "up-page",
+	pagedown: "down-page",
+	home: "top",
+	end: "bottom",
+};
+
+/** Wire Tab, Shift+Tab, `[`, `]`, q, Ctrl-C and Shift scrolling. */
 export function attachKeys(
 	renderer: CliRenderer,
 	view: TuiView,
@@ -23,6 +33,13 @@ export function attachKeys(
 			key.stopPropagation();
 			state.focused = cycleFocus(state.focused, view.panes.length, key.shift);
 			view.setFocus(state.focused);
+			view.focusChanged();
+			return;
+		}
+		const scroll = key.shift ? SCROLL_KEYS[key.name] : undefined;
+		if (scroll) {
+			key.stopPropagation();
+			view.scroll(scroll);
 			return;
 		}
 		if (key.name === "[" || key.name === "]") {
@@ -47,6 +64,7 @@ export interface MountedTui {
 	view: TuiView;
 	state: KeyState;
 	results: Promise<JobResult[]>;
+	waitForQuit(): Promise<JobResult[]>;
 	quit(): void;
 	dispose(): void;
 }
@@ -66,6 +84,7 @@ export function mountTui(
 		view: session.view,
 		state: session.state,
 		results: session.waitForQuit(),
+		waitForQuit: () => session.waitForQuit(),
 		quit: () => session.quit(),
 		dispose() {
 			detachKeys();

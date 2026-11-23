@@ -16,6 +16,17 @@ export function cleanLine(line: string): string {
 	return (states[states.length - 1] ?? "").trim();
 }
 
+/** All cleaned log lines, without a trailing empty line. */
+export function logLines(path: string): string[] {
+	try {
+		const lines = readFileSync(path, "utf8").split("\n").map(cleanLine);
+		while (lines.at(-1) === "") lines.pop();
+		return lines;
+	} catch {
+		return [];
+	}
+}
+
 /** Last `count` lines of a log, or empty when it cannot be read. */
 export function tail(path: string, count: number): string {
 	try {
