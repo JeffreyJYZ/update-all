@@ -67,7 +67,11 @@ export function runCli(args: string[]): { code: number; ran: string; out: string
 	const proc = Bun.spawnSync({
 		cmd: [process.execPath, "src/update-all.ts", ...args],
 		cwd: join(import.meta.dir, "..", ".."),
-		env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ""}` },
+		env: {
+			...process.env,
+			PATH: `${bin}:${process.env.PATH ?? ""}`,
+			UPDATE_ALL_LOG_DIR: tempDir(),
+		},
 		stdout: "pipe",
 		stderr: "pipe",
 	});

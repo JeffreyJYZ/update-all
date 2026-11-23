@@ -51,7 +51,7 @@ function tagColor(job: Job): string {
 	return TAG_COLORS[Math.max(index, 0) % TAG_COLORS.length] ?? FALLBACK_COLOR;
 }
 export function defaultLogDir(): string {
-	return join(homedir(), ".cache", "update-all");
+	return process.env.UPDATE_ALL_LOG_DIR ?? join(homedir(), ".cache", "update-all");
 }
 
 /** Split a byte stream into lines, including a final line with no trailing newline. */
