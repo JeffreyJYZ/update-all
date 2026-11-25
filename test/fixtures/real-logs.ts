@@ -62,11 +62,79 @@ export const longLog = write(
 	`${"noise ".repeat(80)}\n${paint("32", `final ${"z".repeat(300)}`)}\n`,
 );
 
-export const paths = { skillsLog, bunLog, brewLog, escapeLog, longLog };
+const CELLAR_NOISE = [
+	"==> Pouring zstd--1.6.0.arm64_golden_gate.bottle.tar.gz",
+	"/opt/homebrew/Cellar/zstd/1.6.0: 34 files, 2.4MB",
+	"Removing: /opt/homebrew/Cellar/zstd/1.5.7_1 (30 files, 2.2MB)",
+	"==> Auto-updating Homebrew...",
+].join("\n");
+
+export const HINTS_LINE = "Hide these hints with `HOMEBREW_NO_ENV_HINTS=1` (see `man brew`).";
+export const BREW_UPGRADED = "Upgraded 4 outdated packages.";
+
+export const hintsLastLog = write(
+	"brew-hints-last.log",
+	`==> Auto-updating Homebrew...\n${spinner("Pouring", 40, 60)}\n${HINTS_LINE}\n`,
+);
+
+export const hintsMidLog = write(
+	"brew-hints-mid.log",
+	`${HINTS_LINE}\nWarning: something happened\n${BREW_UPGRADED}\n`,
+);
+
+export const upgradedLog = write(
+	"brew-upgraded.log",
+	`==> Auto-updating Homebrew...\nWarning: something happened\n${BREW_UPGRADED}\n`,
+);
+
+export const noOpBrewLog = write(
+	"brew-noop-real.log",
+	`==> Auto-updating Homebrew...\nWarning: You have 3 outdated formulae installed.\n${HINTS_LINE}\n`,
+);
+
+export const POURING_ONE = "upgraded zstd 1.6.0";
+export const POURING_MANY = "upgraded 2 packages";
+
+export const pouringOneLog = write("brew-pouring-one.log", CELLAR_NOISE);
+export const pouringManyLog = write(
+	"brew-pouring-many.log",
+	`${CELLAR_NOISE}\n==> Pouring libpng--1.6.45.arm64_golden_gate.bottle.tar.gz\n`,
+);
+export const cellarNoiseLog = write(
+	"brew-cellar-noise.log",
+	[
+		"/opt/homebrew/Cellar/zstd/1.6.0: 34 files, 2.4MB",
+		"Removing: /opt/homebrew/Cellar/zstd/1.5.7_1 (30 files, 2.2MB)",
+		"==> Auto-updating Homebrew...",
+		HINTS_LINE,
+	].join("\n"),
+);
+
+export const paths = {
+	skillsLog,
+	pouringOneLog,
+	pouringManyLog,
+	cellarNoiseLog,
+	bunLog,
+	brewLog,
+	escapeLog,
+	longLog,
+	hintsLastLog,
+	hintsMidLog,
+	upgradedLog,
+	noOpBrewLog,
+};
 export const results = {
 	skills: resultFromLog(skillsLog),
 	bun: resultFromLog(bunLog),
 	brew: resultFromLog(brewLog),
 	escape: resultFromLog(escapeLog),
 	long: resultFromLog(longLog),
+	hintsLast: resultFromLog(hintsLastLog),
+	hintsMid: resultFromLog(hintsMidLog),
+	upgraded: resultFromLog(upgradedLog),
+	noOpBrew: resultFromLog(noOpBrewLog),
+	pouringOne: resultFromLog(pouringOneLog),
+	pouringMany: resultFromLog(pouringManyLog),
+	cellarNoise: resultFromLog(cellarNoiseLog),
 };

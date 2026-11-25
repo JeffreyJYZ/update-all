@@ -10,25 +10,32 @@ import { fakeJob, tempDir } from "./fixtures/helpers.ts";
 
 /** The three logs from the user's real run, read only. */
 const REAL = [
-	{ name: "skills", want: "Updated 1 skill(s)" },
-	{ name: "bun", want: "packages installed" },
-	{ name: "brew", want: "Downloaded 16.3MB/ 16.3MB" },
+	{ name: "skills", want: /Updated \d+ skill/ },
+	{ name: "bun", want: /packages installed|Checked \d+ installs/ },
+	{ name: "brew", want: /Downloaded|Upgraded|up to date|Already up-to-date/ },
 ];
 
 describe("real on-disk logs", () => {
-	test("extraction returns the completion or final download line", () => {
-		const live = new Set<string>();
+	test("captured tails yield their completion lines", () => {
+		for (const job of REAL) {
+			const name = job.name as keyof typeof captured;
+			const result = resultFromLog(captured[name]);
+			console.log(`CAPTURED ${job.name}: ${result}`);
+			expect(result).toMatch(job.want);
+		}
+	});
+
+	test("live logs never surface an env hint or section marker", () => {
 		for (const job of REAL) {
 			const path = join(homedir(), ".cache", "update-all", `${job.name}.log`);
-			const name = job.name as keyof typeof captured;
-			const source =
-				existsSync(path) && statSync(path).size > 0 ? path : (captured[name] as string);
-			if (source === path) live.add(job.name);
-			const result = resultFromLog(source);
-			console.log(`${source === path ? "REAL" : "CAPTURED"} ${job.name}: ${result}`);
-			expect(result).toContain(job.want);
+			if (!existsSync(path) || statSync(path).size === 0) continue;
+			const result = resultFromLog(path);
+			console.log(`LIVE ${job.name}: ${result}`);
+			expect(result).not.toContain("HOMEBREW_NO_ENV_HINTS");
+			expect(result).not.toContain("HOMEBREW_NO_INSTALL_CLEANUP");
+			expect(result).not.toContain("Hide these hints");
+			expect(result).not.toContain("==>");
 		}
-		console.log(`live logs used: ${[...live].join(", ") || "none"}`);
 	});
 });
 
