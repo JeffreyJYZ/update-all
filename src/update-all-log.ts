@@ -8,16 +8,22 @@ export const ANSI = new RegExp("\\u001b\\[[0-?]*[ -/]*[@-~]", "g");
 /** A real job completion line, preferred over transient output. */
 const COMPLETION =
 	/\b(Upgraded\b|packages installed\b|Updated\s+\d+\s+skill|Installed\b|Already up-to-date\b)/i;
+/** `==> Pouring zstd--1.6.0.arm64_golden_gate.bottle.tar.gz` */
+const POURING = /Pouring\s+(?:[\w.-]+\/)?([^/\s]+)--((?:\d+\.)*\d+)/i;
 const PROGRESS = /\[[=>#*\s.-]+\]\s*\d+%|\b\d+%$|\bDownloading\b|\/[-]+\b/i;
 const SPINNER = /^[|/\\\-\u2800-\u28ff]\s/u;
 const BARE_PATH = /^(~|\.{1,2}|\/)[^\s]*\/[^\s]*$/;
+/** Brew's env hint and section/warning chatter are not job results. */
+const HINT =
+	/HOMEBREW_NO_ENV_HINTS|^Hide these hints|HOMEBREW_NO_INSTALL_CLEANUP|^Disable this behaviour by setting/i;
+const NOISE = /^(==>|Warning:|Removing:)|\/Cellar\//i;
 
 function parts(text: string): string[] {
 	return text
 		.replace(ANSI, "")
 		.split(/[\r\n]/)
 		.map((line) => line.trim().replace(/\s+/g, " "))
-		.filter((line) => line.length > 0);
+		.filter((line) => line.length > 0 && !HINT.test(line));
 }
 
 /** Last non-empty \r or \n segment of one raw log line. */
@@ -40,7 +46,7 @@ export function tail(path: string, count: number): string {
 }
 
 function meaningful(line: string): boolean {
-	if (PROGRESS.test(line) || SPINNER.test(line)) return false;
+	if (PROGRESS.test(line) || SPINNER.test(line) || NOISE.test(line)) return false;
 	if (BARE_PATH.test(line) && !line.includes(" ")) return false;
 	return true;
 }
@@ -55,21 +61,45 @@ export function truncateOneLine(text: string, width?: number): string {
 	return `${text.slice(0, end)}…`;
 }
 
+/** One `name version` pair per Pouring line, deduplicated in log order. */
+export function pouredPackages(lines: string[]): Array<[string, string]> {
+	const found = new Map<string, [string, string]>();
+	for (const line of lines) {
+		const match = POURING.exec(line);
+		const name = match?.[1];
+		const version = match?.[2];
+		if (name && version && !found.has(name)) found.set(name, [name, version]);
+	}
+	return [...found.values()];
+}
+
+/** `upgraded zstd 1.6.0`, or a count for multiple packages. */
+function pouredResult(lines: string[]): string {
+	const packages = pouredPackages(lines);
+	if (packages.length === 0) return "";
+	if (packages.length === 1) {
+		const first = packages[0];
+		return first ? `upgraded ${first[0]} ${first[1]}` : "";
+	}
+	return `upgraded ${packages.length} packages`;
+}
+
 /**
- * Prefer the last real completion line, then the last line that is not a
- * spinner, progress redraw or bare path.
+ * Prefer the last real completion line, then Pouring-derived work, then the
+ * last non-noise line. `up to date` only when no work or completion exists.
  */
 export function resultFromLog(path: string): string {
 	const lines = logLines(path);
-	for (let i = lines.length - 1; i >= 0; i--) {
-		const line = lines[i];
-		if (line && meaningful(line) && COMPLETION.test(line)) return truncateOneLine(line);
+	const eligible = lines.filter((line) => meaningful(line));
+	for (let i = eligible.length - 1; i >= 0; i--) {
+		const line = eligible[i];
+		if (line && COMPLETION.test(line)) return truncateOneLine(line);
 	}
-	for (let i = lines.length - 1; i >= 0; i--) {
-		const line = lines[i];
-		if (line && meaningful(line)) return truncateOneLine(line);
-	}
-	return "";
+	const poured = pouredResult(lines);
+	if (poured) return truncateOneLine(poured);
+	const last = eligible.at(-1);
+	if (last) return truncateOneLine(last);
+	return lines.length > 0 ? "up to date" : "";
 }
 
 /** A pty transcript with only `script` noise means the command never ran. */

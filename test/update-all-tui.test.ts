@@ -3,6 +3,8 @@ import "./fixtures/scroll-tests.ts";
 import "./fixtures/banner-tests.ts";
 import "./fixtures/boundary-tests.ts";
 import "./fixtures/log-result-tests.ts";
+import "./fixtures/env-hint-tests.ts";
+import "./fixtures/pouring-tests.ts";
 import { EmbeddedTerminalRenderable } from "@opentui/core";
 import { createTestRenderer } from "@opentui/core/testing";
 import { JOBS } from "../src/jobs/index.ts";
