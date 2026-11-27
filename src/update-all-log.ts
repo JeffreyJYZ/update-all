@@ -10,6 +10,12 @@ const COMPLETION =
 	/\b(Upgraded\b|packages installed\b|Updated\s+\d+\s+skill|Installed\b|Already up-to-date\b)/i;
 /** `==> Pouring zstd--1.6.0.arm64_golden_gate.bottle.tar.gz` */
 const POURING = /Pouring\s+(?:[\w.-]+\/)?([^/\s]+)--((?:\d+\.)*\d+)/i;
+/** `🍺 wechat was successfully upgraded!` */
+const CASK = /🍺\s+(\S+)\s+was successfully upgraded!/i;
+/** `==> Upgrading clion` (a formula or cask, not the count line). */
+const UPGRADING = /Upgrading\s+(\S+)/i;
+/** Brew's own count, which wins over the markers when present. */
+const BREW_COUNT = /Upgrading\s+(\d+)\s+outdated packages/i;
 const PROGRESS = /\[[=>#*\s.-]+\]\s*\d+%|\b\d+%$|\bDownloading\b|\/[-]+\b/i;
 const SPINNER = /^[|/\\\-\u2800-\u28ff]\s/u;
 const BARE_PATH = /^(~|\.{1,2}|\/)[^\s]*\/[^\s]*$/;
@@ -73,30 +79,50 @@ export function pouredPackages(lines: string[]): Array<[string, string]> {
 	return [...found.values()];
 }
 
-/** `upgraded zstd 1.6.0`, or a count for multiple packages. */
-function pouredResult(lines: string[]): string {
-	const packages = pouredPackages(lines);
-	if (packages.length === 0) return "";
-	if (packages.length === 1) {
-		const first = packages[0];
-		return first ? `upgraded ${first[0]} ${first[1]}` : "";
+/** Distinct package names from every upgrade marker in the whole log. */
+export function upgradedNames(lines: string[]): string[] {
+	const names = new Set<string>();
+	for (const line of lines) {
+		const poured = POURING.exec(line)?.[1];
+		const cask = CASK.exec(line)?.[1];
+		const upgrading = BREW_COUNT.test(line) ? undefined : UPGRADING.exec(line)?.[1];
+		const name = poured ?? cask ?? upgrading;
+		if (name && name !== "outdated") names.add(name);
 	}
-	return `upgraded ${packages.length} packages`;
+	return [...names];
 }
 
-/**
- * Prefer the last real completion line, then Pouring-derived work, then the
- * last non-noise line. `up to date` only when no work or completion exists.
- */
+/** Synthesize a result from markers, or return empty when none exist. */
+function upgradedResult(lines: string[]): string {
+	let count = upgradedNames(lines).length;
+	for (const line of lines) {
+		const authoritative = BREW_COUNT.exec(line)?.[1];
+		if (authoritative) count = Number(authoritative);
+	}
+	if (count === 0) return "";
+	if (count === 1) {
+		const names = upgradedNames(lines);
+		const name = names[0];
+		const poured = pouredPackages(lines)[0];
+		const hasCask = lines.some((line) => CASK.exec(line)?.[1] === name);
+		if (poured && !hasCask && names.length === 1) {
+			return `upgraded ${poured[0]} ${poured[1]}`;
+		}
+		return `upgraded ${name ?? "1 package"}`;
+	}
+	return `upgraded ${count} packages`;
+}
+
+/** Prefer marker-derived work, then a real summary, then the last non-noise line. */
 export function resultFromLog(path: string): string {
 	const lines = logLines(path);
 	const eligible = lines.filter((line) => meaningful(line));
+	const upgraded = upgradedResult(lines);
+	if (upgraded) return truncateOneLine(upgraded);
 	for (let i = eligible.length - 1; i >= 0; i--) {
 		const line = eligible[i];
 		if (line && COMPLETION.test(line)) return truncateOneLine(line);
 	}
-	const poured = pouredResult(lines);
-	if (poured) return truncateOneLine(poured);
 	const last = eligible.at(-1);
 	if (last) return truncateOneLine(last);
 	return lines.length > 0 ? "up to date" : "";
