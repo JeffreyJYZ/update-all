@@ -110,8 +110,43 @@ export const cellarNoiseLog = write(
 	].join("\n"),
 );
 
+const cask = (name: string) => `🍺 ${name} was successfully upgraded!`;
+const pour = (name: string, version: string) =>
+	`==> Pouring ${name}--${version}.arm64_golden_gate.bottle.tar.gz`;
+
+const CASK_NAMES = ["wechat", "google-chrome", "firefox", "spotify", "slack", "zoom", "vscode"];
+export const SEVEN = "upgraded 7 packages";
+export const ONE_CASK = "upgraded wechat";
+export const MIXED = "upgraded 5 packages";
+
+export const sevenCasksLog = write("brew-seven-casks.log", `${CASK_NAMES.map(cask).join("\n")}\n`);
+export const oneCaskLog = write("brew-one-cask.log", `${cask("wechat")}\n`);
+export const mixedLog = write(
+	"brew-mixed.log",
+	[
+		`${pour("a", "1")}\n`,
+		`${pour("b", "1")}\n`,
+		`${pour("c", "1")}\n`,
+		`${cask("wechat")}\n`,
+		`${cask("spotify")}\n`,
+	].join(""),
+);
+export const duplicateLog = write(
+	"brew-duplicate.log",
+	`${pour("wechat", "1.6.0")}\n${cask("wechat")}\n`,
+);
+export const authoritativeLog = write(
+	"brew-authoritative.log",
+	`==> Upgrading 7 outdated packages\n${pour("a", "1")}\n${pour("b", "1")}\n`,
+);
+
 export const paths = {
 	skillsLog,
+	sevenCasksLog,
+	oneCaskLog,
+	mixedLog,
+	duplicateLog,
+	authoritativeLog,
 	pouringOneLog,
 	pouringManyLog,
 	cellarNoiseLog,
@@ -137,4 +172,9 @@ export const results = {
 	pouringOne: resultFromLog(pouringOneLog),
 	pouringMany: resultFromLog(pouringManyLog),
 	cellarNoise: resultFromLog(cellarNoiseLog),
+	sevenCasks: resultFromLog(sevenCasksLog),
+	oneCask: resultFromLog(oneCaskLog),
+	mixed: resultFromLog(mixedLog),
+	duplicate: resultFromLog(duplicateLog),
+	authoritative: resultFromLog(authoritativeLog),
 };
